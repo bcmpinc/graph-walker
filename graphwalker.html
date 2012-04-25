@@ -1,0 +1,245 @@
+<?xml version="1.0" standalone="yes"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Graph walker game</title>
+<meta content="">
+<style>
+body{background:lightgray; text-align:center;}
+svg{width:500px; height:500px; border: 2px solid black; background:white;}
+svg .p1{fill:red; stroke:red;}
+svg .p2{fill:blue; stroke:blue;}
+text {font-size:0.1; text-anchor:middle; stroke-width:0;}
+.grid{stroke:gray; stroke-width:.003;}
+.grid .used{stroke-width:.015;}
+
+.current{fill:transparent !important; stroke:black;}
+
+.points{fill:gray; stroke:black !important;stroke-width:.005;}
+.points .near{stroke-width:.01;}
+.points .used{fill:black;}
+.initial{stroke:black;}
+.near:hover{cursor:pointer;}
+</style>
+<script>
+// svg namespace
+var SVG="http://www.w3.org/2000/svg";
+var SCALE=1/8+1/32;
+var DEFAULT_DOT_RADIUS=0.02;
+var NEAR_DOT_RADIUS=0.03;
+
+// Create and append a new element
+// Don't use style in pars. Gives 'component not available' exception.
+var add=function(nodetype,node,pars){
+	var e=document.createElementNS(SVG,nodetype);
+	for (p in pars) {
+		e.setAttribute(p,pars[p]);
+	}
+	node.appendChild(e);
+	return e;
+}
+
+var add_class=function(e,cls) {
+	e.setAttribute("class",e.hasAttribute("class")?e.getAttribute("class")+' '+cls:cls);
+}
+var remove_class=function(e,cls) {
+	if(!e.hasAttribute("class")) return;
+	var v = (' '+e.getAttribute("class")+' ').replace(' '+cls+' ',' ').trim();
+	if(v)e.setAttribute("class",v);
+	else e.removeAttribute("class");
+}
+
+var map=[];
+var current={};
+var msgs={};
+var node=function(x,y,exit) {
+	r={x:x,y:y,exit:exit||0,edges:[]};
+	map.push(r);
+	return r;
+}
+var edge=function(na,nb,used) {
+	r={a:na,b:nb,used:used||false};
+	na.edges.push(r);
+	nb.edges.push(r);
+	if (used) na.used=nb.used=true;
+	return r;
+}
+
+// Create a default map.
+var create_map=function() {
+	var square={}
+	// Create nodes
+	for (var y=-5;y<=5;y++) {
+		for (var x=-5;x<=5;x++) {
+			square[[x,y]]=node(x*SCALE,y*SCALE);
+		}
+	}
+	// create edges
+	for (var y=-5;y<=5;y++) {
+		for (var x=-5;x<=5;x++) {
+			if(y<5) {
+				if (x==-5||x==5) {
+					if (y!=0&&y!=-1) edge(square[[x,y]],square[[x,y+1]],used=true);
+				} else {
+					edge(square[[x,y]],square[[x,y+1]]);
+				}
+			}
+			if(x<5) {
+				if (y==-5||y==5) {
+					edge(square[[x,y]],square[[x+1,y]],used=true);
+				} else {
+					edge(square[[x,y]],square[[x+1,y]]);
+				}
+			}
+			if(x<5&&y<5) {
+				edge(square[[x,y]],square[[x+1,y+1]]);
+				edge(square[[x+1,y]],square[[x,y+1]]);
+			}
+		}
+	}
+	// create exit nodes
+	square[[-5,0]].exit=1;
+	square[[ 5,0]].exit=2;
+	current.node=square[[0,0]];
+	current.player="p1";
+}
+create_map();
+
+// Check the validity of the move
+// If valid, mark the used edge as used.
+var is_move_valid=function(n) {
+	// a 'pass' is always valid
+	if (n==current.node) return true;
+	// Check if the new node is a neighbour of the current node, through an unused edge.
+	for (var j in current.node.edges) {
+		e=current.node.edges[j];
+		if(!e.used && (e.a==n || e.b==n)) {
+			// It is valid. Apply the move.
+			// Mark edge as used.
+			add_class(e.element,"used");
+			add_class(e.element,current.player);
+			e.used=true;
+			// Move is valid
+			return true;
+		}
+	}
+	return false;
+}
+
+// Checks whether the move is actually valid.
+// If this is the case, change the position to the given node.
+// Updating status and visual information of points and the walked edge.
+var update_current=function(n) {
+	// Verify that the game is still running
+	if (current.node.exit) return;
+	
+	// Check if the clicked node is a valid move.
+	if (!is_move_valid(n)) return;
+
+	// clear previous allowed move markers
+	for (var j in current.node.edges) {
+		e=current.node.edges[j];
+		remove_class(e.a.element,"near");
+		remove_class(e.b.element,"near");
+		e.a.element.setAttribute("r",DEFAULT_DOT_RADIUS);
+		e.b.element.setAttribute("r",DEFAULT_DOT_RADIUS);
+	}
+
+	// Move animation & current point color.
+	current.anim.setAttribute("transform","translate("+n.x+","+n.y+")");
+	remove_class(current.node.element,current.player);
+	if (!n.used) {
+		// Change player if an unused node is hit.
+		remove_class(current.anim,current.player);
+		current.player = (current.player=="p1")?"p2":"p1";
+		add_class(current.anim,current.player);
+		if (n.exit) {
+			msgs.notice.data="Player "+n.exit+" has won!";
+			add_class(msgs.notice.parentNode,"p"+n.exit);
+			return;
+		}
+	}
+	add_class(n.element,current.player);
+
+	// mark previous node as used. mark new node (temporarily) as unused.
+	add_class(current.node.element,"used");
+	current.node.used=true;
+	remove_class(n.element,"used");
+
+	// Create new allowed move markers
+	var last=false;
+	var options=0;
+	for (var j in n.edges) {
+		e=n.edges[j];
+		if(!e.used) {
+			var m=e.a==n?e.b:e.a;
+			add_class(m.element,"near");
+			m.element.setAttribute("r",NEAR_DOT_RADIUS);
+			last=m;
+			options++;
+		}
+	}
+	current.node=n;
+
+	if (options==0) {
+		// Check for a tie.
+		msgs.notice.data="The game is a tie!";
+	} else if (options==1) {
+		// Only one valid move available, so execute it immediately.
+		update_current(last);
+	}
+}
+
+// Adds an event handler for a point.
+var add_move_handler=function(n) {
+	n.element.addEventListener("click",function() {
+		// Attempt to change the current position.
+		update_current(n);
+	},false);
+}
+
+// initialize
+var onload=function(){
+	var root=document.getElementById("root");
+	var grid=add("g",root,{class:"grid"});
+	current.anim=add("g",root,{class:"current"});
+	var points=add("g",root,{class:"points"});
+	msgs.notice = document.createTextNode("Welcome to Graph Walker.");
+	add("text",root,{x:0,y:0.93,width:2,height:0.1}).appendChild(msgs.notice);
+	msgs.p1 = document.createTextNode("Player 1");
+	add("text",root,{x:-0.5,y:-0.87,width:2,height:0.1,class:"p1"}).appendChild(msgs.p1);
+	msgs.p2 = document.createTextNode("Player 2");
+	add("text",root,{x: 0.5,y:-0.87,width:2,height:0.1,class:"p2"}).appendChild(msgs.p2);
+
+	// Create nodes and edges svg-elements.
+	for (var i in map) {
+		n=map[i];
+		// Create the node.
+		n.element=add("circle",points,{cx:n.x,cy:n.y,r:DEFAULT_DOT_RADIUS});
+		if (n.exit) n.element.setAttribute("class",["","exit p1","exit p2"][n.exit]);
+		if (n.used) add_class(n.element,"used");
+
+		// Add an click event handler to the node.
+		add_move_handler(n);
+		for (var j in n.edges) {
+			e=n.edges[j];
+			if(!e.element) {
+				// Create the edge.
+				e.element=add("line",grid,{x1:e.a.x,y1:e.a.y,x2:e.b.x,y2:e.b.y});
+				if (e.used) e.element.setAttribute("class","used initial");
+			}
+		}
+	}
+
+	// Create current animation.
+	for (var i=0; i<2; i++) {
+		var c=add("circle",current.anim,{cx:0,cy:0,r:0});
+		add("animate",c,{attributeName:"r", dur:"2s", begin:-i, values:".01;.05", repeatCount:"indefinite"});
+		add("animate",c,{attributeName:"stroke-width", dur:"2s", begin:-i, values:".02;0", repeatCount:"indefinite"});
+	}
+	update_current(current.node);
+}
+window.addEventListener("load",onload,false);
+</script>
+</head>
+<body><svg xmlns="http://www.w3.org/2000/svg" viewbox="-1 -1 2 2" id="root"></svg></body>
+</html>
