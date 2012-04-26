@@ -52,14 +52,30 @@ var remove_class=function(e,cls) {
 	else e.removeAttribute("class");
 }
 
-var map=[];
-var current={};
-var msgs={};
+var map=[]; // a list of all nodes contained in the map.
+var current={}; // stores information about the current state.  It has the fields:
+// - 'node' the currently visited node,
+// - 'can_move' boolean that is set to true when the player is allowed to make a move,
+// - 'player' the player that is allowed to make the next move, value is "p1" or "p2".
+var msgs={}; // contains text elements for 'notice', 'p1' and 'p2'.
+
+// Adds a node to the map.
+// Let n be a node:
+//  - n.x,n.y denote the location of the node.
+//  - n.exit tells what player can exit at this node. (0 if not an exit, default)
+//  - n.element is the svg element that displays this node.
+//  - n.used stores whether the node has been visited already.
 var node=function(x,y,exit) {
 	r={x:x,y:y,exit:exit||0,edges:[]};
 	map.push(r);
 	return r;
 }
+
+// Adds an edge to the map.
+// Let e be an edge:
+//  - e.a and e.b are the nodes connected by this edge.
+//  - e.used tells whether this edge is in use. Such an edge can not be used to make a move.
+//  - e.element the svg element used to display the edge.
 var edge=function(na,nb,used) {
 	r={a:na,b:nb,used:used||false};
 	na.edges.push(r);
