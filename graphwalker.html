@@ -5,10 +5,12 @@
 <meta content="">
 <style>
 body{background:lightgray; text-align:center;}
+form{margin: 100px auto; display:table; border:2px solid black; background:white;}
+div.ng{position: fixed; top:0; bottom:0; left:0; right:0; background: rgba(0,0,0,0.1);}
+table input{width: 100px;}
+
 svg{width:500px; height:500px; border: 2px solid black; background:white;}
-svg .p1{fill:red; stroke:red;}
-svg .p2{fill:blue; stroke:blue;}
-text {font-size:0.1; text-anchor:middle; stroke-width:0;}
+text{font-size:0.1; text-anchor:middle; stroke-width:0;}
 .grid{stroke:gray; stroke-width:.003;}
 .grid .used{stroke-width:.015;}
 .grid .pruned{stroke-width:.015;stroke:lightgray;}
@@ -22,20 +24,27 @@ text {font-size:0.1; text-anchor:middle; stroke-width:0;}
 .points .pruned{fill:white;stroke:lightgray;}
 .initial{stroke:black;}
 .near:hover{cursor:pointer;}
+text.ng{fill:gray;}
+text.ng:hover{fill:black;cursor:pointer;}
+</style>
+<style id="player_colors">
 </style>
 <script>
-// svg namespace
-var SVG="http://www.w3.org/2000/svg";
+var SVG="http://www.w3.org/2000/svg"; // svg namespace
+var XHTML="http://www.w3.org/1999/xhtml"; // xhtml namespace
 var SCALE=1/8+1/32;
 var DEFAULT_DOT_RADIUS=0.02;
 var NEAR_DOT_RADIUS=0.03;
 var NAME={p1:"Red",p2:"Blue"};
 var MOVE_DURATION=0.25;
+var GLOBAL=this;
+var $=function(a){return document.getElementById(a);};
+var AI=[];
 
 // Create and append a new element
 // Don't use style in pars. Gives 'component not available' exception.
-var add=function(nodetype,node,pars){
-	var e=document.createElementNS(SVG,nodetype);
+var add=function(nodetype,node,pars,ns){
+	var e=document.createElementNS(ns||SVG,nodetype);
 	for (p in pars) {
 		e.setAttribute(p,pars[p]);
 	}
@@ -53,38 +62,52 @@ var remove_class=function(e,cls) {
 	else e.removeAttribute("class");
 }
 
-var map=[]; // a list of all nodes contained in the map.
-var current={}; // stores information about the current state.  It has the fields:
-// - 'node' the currently visited node,
-// - 'can_move' boolean that is set to true when the player is allowed to make a move,
-// - 'player' the player that is allowed to make the next move, value is "p1" or "p2".
-var msgs={}; // contains text elements for 'notice', 'p1' and 'p2'.
-var ai_data={p1:{},p2:{}}; // contains auxiliary data for the ai's
-var exits={p1:[],p2:[]}; // contains lists of exists. One for each player.
+// Initialize or reset non-static game specific globals.
+var reset=function() {
+	GLOBAL.map=[]; // a list of all nodes contained in the map.
+	GLOBAL.current={}; // stores information about the current state.  It has the fields:
+	// - 'node' the currently visited node,
+	// - 'can_move' boolean that is set to true when the player is allowed to make a move,
+	// - 'player' the player that is allowed to make the next move, value is "p1" or "p2".
+	GLOBAL.msgs={}; // contains text elements for 'notice', 'p1' and 'p2'.
+	GLOBAL.ai_data={p1:{},p2:{}}; // contains auxiliary data for the ai's
+	GLOBAL.exits={p1:[],p2:[]}; // contains lists of exists. One for each player.
+}
 
-// Adds a node to the map.
+// Constructor: Adds a node to the map.
 // Let n be a node:
 //  - n.x,n.y denote the location of the node.
 //  - n.exit tells what player can exit at this node. (0 if not an exit, default)
 //  - n.element is the svg element that displays this node.
 //  - n.used stores whether the node has been visited already.
-var node=function(x,y,exit) {
-	r={x:x,y:y,exit:exit||0,edges:[],toString:function(){return "node"+this.id;},id:map.length};
-	map.push(r);
-	return r;
+var node=function(x,y) {
+	this.x=x;
+	this.y=y;
+	this.edges=[];
+	this.id=map.length;
+	map.push(this);
 }
+node.prototype.toString=function(){return "node"+this.id;};
 
-// Adds an edge to the map.
+// Constructor: Adds an edge to the map.
 // Let e be an edge:
 //  - e.a and e.b are the nodes connected by this edge.
 //  - e.used tells whether this edge is in use. Such an edge can not be used to make a move.
 //  - e.element the svg element used to display the edge.
 var edge=function(na,nb,used) {
-	r={a:na,b:nb,used:used||false};
-	na.edges.push(r);
-	nb.edges.push(r);
+	this.a=na
+	this.b=nb
+	this.used=used||false;
+	na.edges.push(this);
+	nb.edges.push(this);
 	if (used) na.used=nb.used=true;
-	return r;
+}
+
+// Constructor: creates a new AI
+var ai=function(name, fun) {
+	this.name=name;
+	this.fun=fun;
+	AI.push(this);
 }
 
 // Create a default map.
@@ -93,7 +116,7 @@ var create_map=function() {
 	// Create nodes
 	for (var y=-5;y<=5;y++) {
 		for (var x=-5;x<=5;x++) {
-			square[[x,y]]=node(x*SCALE,y*SCALE);
+			square[[x,y]]=new node(x*SCALE,y*SCALE);
 		}
 	}
 	// create edges
@@ -101,21 +124,21 @@ var create_map=function() {
 		for (var x=-5;x<=5;x++) {
 			if(y<5) {
 				if (x==-5||x==5) {
-					if (y!=0&&y!=-1) edge(square[[x,y]],square[[x,y+1]],used=true);
+					if (y!=0&&y!=-1) new edge(square[[x,y]],square[[x,y+1]],used=true);
 				} else {
-					edge(square[[x,y]],square[[x,y+1]]);
+					new edge(square[[x,y]],square[[x,y+1]]);
 				}
 			}
 			if(x<5) {
 				if (y==-5||y==5) {
-					edge(square[[x,y]],square[[x+1,y]],used=true);
+					new edge(square[[x,y]],square[[x+1,y]],used=true);
 				} else {
-					edge(square[[x,y]],square[[x+1,y]]);
+					new edge(square[[x,y]],square[[x+1,y]]);
 				}
 			}
 			if(x<5&&y<5) {
-				edge(square[[x,y]],square[[x+1,y+1]]);
-				edge(square[[x+1,y]],square[[x,y+1]]);
+				new edge(square[[x,y]],square[[x+1,y+1]]);
+				new edge(square[[x+1,y]],square[[x,y+1]]);
 			}
 		}
 	}
@@ -123,17 +146,18 @@ var create_map=function() {
 	square[[-5,0]].exit=1;
 	square[[ 5,0]].exit=2;
 	current.node=square[[0,0]];
-	current.player="p1";
+	current.player="p"+(1+Math.floor(Math.random()*2));
 }
-create_map();
 
 // An ai must be a function that accepts one parameter.
 // This parameter is the persistent data storage for use by the ai.
 // The ai must either return the node it wants to move to, or otherwise
 // forefeit by returning false.
 
+new ai("Human",0);
+
 // This is a stupid random player
-var ai_random=function(data) {
+new ai("Random player",function(data) {
 	var N = current.node.edges.length;
 	var s = Math.floor(Math.random()*N);
 	var m = [2063,2069,2081,2083,2087,2089,2099,2111,2113,2129][Math.floor(Math.random()*N)];
@@ -144,11 +168,11 @@ var ai_random=function(data) {
 		}
 	}
 	return false;
-}
+});
 
 // This player tries to minimize the distance to its own exit.
 // Which can be stupid if there is a slightly longer path of chained moves to its exit.
-var ai_distance=function(data) {
+new ai("Shortest path",function(data) {
 	// Do a BFS.
 	var queue = [];
 	var distance = {};
@@ -186,9 +210,7 @@ var ai_distance=function(data) {
 		}
 	}
 	return false;
-}
-
-var selected_ai={p1:ai_distance,p2:ai_distance};
+});
 
 // If this node has only one edge remaining, then remove that edge.
 // In that case prune the neighbouring node as well.
@@ -330,14 +352,18 @@ var update_current=function() {
 // Adds an event handler for a point.
 var add_move_handler=function(n) {
 	n.element.addEventListener("click",function() {
+		if (n==current.node) return;
 		// Attempt to change the current position.
 		initiate_move(n);
 	},false);
 }
 
-// initialize
-var onload=function(){
-	var root=document.getElementById("root");
+// Create the user interface
+var build_interface=function(){
+	var root=$("root");
+	// Remove any old interace
+	while (root.childNodes.length>0) root.removeChild(root.lastChild);
+	// Build the new one
 	var grid=add("g",root,{class:"grid"});
 	current.anim=add("g",root,{class:"current"});
 	var points=add("g",root,{class:"points"});
@@ -347,6 +373,9 @@ var onload=function(){
 	add("text",root,{x:-0.5,y:-0.87,width:2,height:0.1,class:"p1"}).appendChild(msgs.p1);
 	msgs.p2 = document.createTextNode("Player "+NAME.p2);
 	add("text",root,{x: 0.5,y:-0.87,width:2,height:0.1,class:"p2"}).appendChild(msgs.p2);
+	msgs.ng = document.createTextNode("New Game");
+	add("text",root,{x:-0.5,y:0.93,width:2,height:0.1,class:"ng",transform:"rotate(-90)"}).appendChild(msgs.ng);
+	msgs.ng.parentNode.addEventListener("click",function(){$("form").style.display="block";});
 
 	// Create nodes and edges svg-elements.
 	for (var i in map) {
@@ -386,8 +415,49 @@ var onload=function(){
 	current.translate.addEventListener("endEvent", update_current, false);
 	update_current();
 }
-window.addEventListener("load",onload,false);
+
+// Starts a new game, destroying the previous one.
+var new_game=function() {
+	var cp1=$("color_p1").value;
+	var cp2=$("color_p2").value;
+	$("player_colors").textContent=
+		"svg .p1{fill:"+cp1+"; stroke:"+cp1+";}\n" +
+		"svg .p2{fill:"+cp2+"; stroke:"+cp2+";}\n";
+	NAME.p1=$("name_p1").value;
+	NAME.p2=$("name_p2").value;
+	GLOBAL.selected_ai={p1:AI[$("ai_p1").selectedIndex].fun,p2:AI[$("ai_p2").selectedIndex].fun};
+	reset();
+	create_map();
+	build_interface();
+	$("form").style.display="none";
+	$("cancel").style.display="inline";
+}
+
+// initialize
+var init=function() {
+	$("name_p1").value=NAME.p1;
+	$("name_p2").value=NAME.p2;
+	$("color_p1").value="red";
+	$("color_p2").value="blue";
+	$("newgame").addEventListener("click",new_game,false);
+	$("cancel").addEventListener("click",function(){$("form").style.display="none";});
+	$("cancel").style.display="none";
+	AIP=[$("ai_p1"),$("ai_p2")];
+	for (j in AIP) {
+		for (i in AI) {
+			add("option",AIP[j],{},XHTML).appendChild(document.createTextNode(AI[i].name));
+		}
+	}
+	//new_game();
+}
+window.addEventListener("load",init,false);
 </script>
 </head>
-<body><svg xmlns="http://www.w3.org/2000/svg" viewbox="-1 -1 2 2" id="root"></svg></body>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" viewbox="-1 -1 2 2" id="root"></svg></body>
+<div class="ng" id="form"><form><h1>Graph Walker</h1><table>
+<tr><td></td><th>Name</th><th>Color</th><th>AI</th></tr>
+<tr><td>1</td><td><input id="name_p1"></td><td><input id="color_p1"></td><td><select id="ai_p1"></select></td></tr>
+<tr><td>2</td><td><input id="name_p2"></td><td><input id="color_p2"></td><td><select id="ai_p2"></select></td></tr>
+</table><input type="button" id="newgame" value="New Game"><input type="button" id="cancel" value="Cancel"></form></div>
 </html>
