@@ -11,13 +11,15 @@ svg .p2{fill:blue; stroke:blue;}
 text {font-size:0.1; text-anchor:middle; stroke-width:0;}
 .grid{stroke:gray; stroke-width:.003;}
 .grid .used{stroke-width:.015;}
+.grid .pruned{stroke-width:.015;stroke:lightgray;}
 
 .current .wave{fill:transparent !important;}
 .current {stroke:black; stroke-width:0;}
 
-.points{fill:gray; stroke:black !important;stroke-width:.005;}
+.points{fill:black; stroke:black !important;stroke-width:.005;}
 .points .near{stroke-width:.01;}
-.points .used{fill:black;}
+.points .used{fill:gray;}
+.points .pruned{fill:white;stroke:lightgray;}
 .initial{stroke:black;}
 .near:hover{cursor:pointer;}
 </style>
@@ -106,6 +108,30 @@ var create_map=function() {
 }
 create_map();
 
+// If this node has only one edge remaining, then remove that edge.
+// In that case prune the neighbouring node as well.
+// This avoids any player to easily force a draw.
+var prune_node=function(n) {
+	var count = 0;
+	var last;
+	for (var j in n.edges) {
+		var e=n.edges[j];
+		if(!e.used) {
+			count++;
+			last = e;
+		}
+	}
+	// Node is a dead end, prune it.
+	if (count<=1) {
+		add_class(n.element,"pruned");
+	}
+	if (count==1) {
+		last.used=true;
+		add_class(last.element,"pruned");
+		prune_node(last.a==n?last.b:last.a);
+	}
+}
+
 // Check the validity of the move
 // If valid, mark the used edge as used.
 var is_move_valid=function(n) {
@@ -113,7 +139,7 @@ var is_move_valid=function(n) {
 	if (n==current.node) return true;
 	// Check if the new node is a neighbour of the current node, through an unused edge.
 	for (var j in current.node.edges) {
-		e=current.node.edges[j];
+		var e=current.node.edges[j];
 		if(!e.used && (e.a==n || e.b==n)) {
 			// It is valid. Apply the move.
 			// Mark edge as used.
@@ -128,7 +154,7 @@ var is_move_valid=function(n) {
 }
 
 // Checks whether the move is actually valid.
-// If this is the case, change the position to the given node.
+// If this is the case, initiate a move to the given node.
 // Updating status and visual information of points and the walked edge.
 var initiate_move=function(n) {
 	// Verify that the game is still running
@@ -139,7 +165,7 @@ var initiate_move=function(n) {
 
 	// clear previous allowed move markers
 	for (var j in current.node.edges) {
-		e=current.node.edges[j];
+		var e=current.node.edges[j];
 		remove_class(e.a.element,"near");
 		remove_class(e.b.element,"near");
 		e.a.element.setAttribute("r",DEFAULT_DOT_RADIUS);
@@ -160,9 +186,13 @@ var initiate_move=function(n) {
 
 	// Remove color from current node
 	remove_class(current.node.element,current.player);
+	prune_node(current.node);
 	current.node=n;
 	current.can_move=false;
 }
+
+// After finishing the animation
+// Update the visuals for the new position
 var update_current=function() {
 	var n = current.node;
 	if (n.exit) {
@@ -184,7 +214,7 @@ var update_current=function() {
 	var last=false;
 	var options=0;
 	for (var j in n.edges) {
-		e=n.edges[j];
+		var e=n.edges[j];
 		if(!e.used) {
 			var m=e.a==n?e.b:e.a;
 			add_class(m.element,"near");
@@ -226,7 +256,7 @@ var onload=function(){
 
 	// Create nodes and edges svg-elements.
 	for (var i in map) {
-		n=map[i];
+		var n=map[i];
 		// Create the node.
 		n.element=add("circle",points,{cx:n.x,cy:n.y,r:DEFAULT_DOT_RADIUS});
 		if (n.exit) n.element.setAttribute("class",["","exit p1","exit p2"][n.exit]);
@@ -235,7 +265,7 @@ var onload=function(){
 		// Add an click event handler to the node.
 		add_move_handler(n);
 		for (var j in n.edges) {
-			e=n.edges[j];
+			var e=n.edges[j];
 			if(!e.element) {
 				// Create the edge.
 				e.element=add("line",grid,{x1:e.a.x,y1:e.a.y,x2:e.b.x,y2:e.b.y});
@@ -244,6 +274,11 @@ var onload=function(){
 		}
 	}
 
+	// Do initial pruning.
+	for (var i in map) {
+		prune_node(map[i]);
+	}
+	
 	// Create current animation.
 	for (var i=0; i<2; i++) {
 		var c=add("circle",current.anim,{cx:0,cy:0,r:0,class:"wave"});
