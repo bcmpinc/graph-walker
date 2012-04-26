@@ -124,6 +124,21 @@ var create_map=function() {
 }
 create_map();
 
+var ai_random=function() {
+	var N = current.node.edges.length;
+	var s = Math.floor(Math.random()*N);
+	var m = [2063,2069,2081,2083,2087,2089,2099,2111,2113,2129][Math.floor(Math.random()*N)];
+	for (var i=0; i<N; i++) {
+		var e = current.node.edges[(s+i*m)%N];
+		if (!e.used) {
+			return e.a==current.node?e.b:e.a;
+		}
+	}
+	return false;
+}
+
+var selected_ai={p1:ai_random,p2:ai_random};
+
 // If this node has only one edge remaining, then remove that edge.
 // In that case prune the neighbouring node as well.
 // This avoids any player to easily force a draw.
@@ -246,6 +261,18 @@ var update_current=function() {
 	} else if (options==1) {
 		// Only one valid move available, so execute it immediately.
 		initiate_move(last);
+	} else {
+		if (selected_ai[current.player]) {
+			var move = selected_ai[current.player]();
+			if (!move) {
+				msgs.notice.data="Player "+NAME[n.exit]+" has given up!";
+				add_class(msgs.notice.parentNode,"p"+n.exit);
+				current.can_move=false;
+				return;
+			} else {
+				initiate_move(move);
+			}
+		}
 	}
 }
 
