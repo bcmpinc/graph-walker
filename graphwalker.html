@@ -29,7 +29,8 @@ var SVG="http://www.w3.org/2000/svg";
 var SCALE=1/8+1/32;
 var DEFAULT_DOT_RADIUS=0.02;
 var NEAR_DOT_RADIUS=0.03;
-var NAME=["","Red","Blue"];
+var NAME={p1:"Red",p2:"Blue"};
+var MOVE_DURATION=0.25;
 
 // Create and append a new element
 // Don't use style in pars. Gives 'component not available' exception.
@@ -58,6 +59,8 @@ var current={}; // stores information about the current state.  It has the field
 // - 'can_move' boolean that is set to true when the player is allowed to make a move,
 // - 'player' the player that is allowed to make the next move, value is "p1" or "p2".
 var msgs={}; // contains text elements for 'notice', 'p1' and 'p2'.
+var ai_data={p1:{},p2:{}}; // contains auxiliary data for the ai's
+var exits={p1:[],p2:[]}; // contains lists of exists. One for each player.
 
 // Adds a node to the map.
 // Let n be a node:
@@ -66,7 +69,7 @@ var msgs={}; // contains text elements for 'notice', 'p1' and 'p2'.
 //  - n.element is the svg element that displays this node.
 //  - n.used stores whether the node has been visited already.
 var node=function(x,y,exit) {
-	r={x:x,y:y,exit:exit||0,edges:[]};
+	r={x:x,y:y,exit:exit||0,edges:[],toString:function(){return "node"+this.id;},id:map.length};
 	map.push(r);
 	return r;
 }
@@ -124,7 +127,13 @@ var create_map=function() {
 }
 create_map();
 
-var ai_random=function() {
+// An ai must be a function that accepts one parameter.
+// This parameter is the persistent data storage for use by the ai.
+// The ai must either return the node it wants to move to, or otherwise
+// forefeit by returning false.
+
+// This is a stupid random player
+var ai_random=function(data) {
 	var N = current.node.edges.length;
 	var s = Math.floor(Math.random()*N);
 	var m = [2063,2069,2081,2083,2087,2089,2099,2111,2113,2129][Math.floor(Math.random()*N)];
@@ -137,7 +146,49 @@ var ai_random=function() {
 	return false;
 }
 
-var selected_ai={p1:ai_random,p2:ai_random};
+// This player tries to minimize the distance to its own exit.
+// Which can be stupid if there is a slightly longer path of chained moves to its exit.
+var ai_distance=function(data) {
+	// Do a BFS.
+	var queue = [];
+	var distance = {};
+	var e = exits[current.player];
+	for (i in e) {
+		queue.push(e[i]);
+		distance[e[i]]=0;
+	}
+	while (queue.length>0) {
+		var n = queue.shift();
+		for (i in n.edges) {
+			var e = n.edges[i];
+			if (!e.used) {
+				var m = e.a==n?e.b:e.a;
+				if (!distance.hasOwnProperty(m)) {
+					distance[m] = distance[n]+1;
+					queue.push(m);
+				}
+			}
+		}
+	}
+
+	// If there is no path to our exit, give up.
+	if (!distance.hasOwnProperty(current.node)) return false;
+
+	// Pick randomly an edge that reduces the distance.
+	var N = current.node.edges.length;
+	var s = Math.floor(Math.random()*N);
+	var m = [2063,2069,2081,2083,2087,2089,2099,2111,2113,2129][Math.floor(Math.random()*N)];
+	for (var i=0; i<N; i++) {
+		var e = current.node.edges[(s+i*m)%N];
+		if (!e.used) {
+			var move = e.a==current.node?e.b:e.a;
+			if (distance[move]<distance[current.node]) return move;
+		}
+	}
+	return false;
+}
+
+var selected_ai={p1:ai_distance,p2:ai_distance};
 
 // If this node has only one edge remaining, then remove that edge.
 // In that case prune the neighbouring node as well.
@@ -228,7 +279,7 @@ var update_current=function() {
 	var n = current.node;
 	if (n.exit) {
 		// Provide end-of game message.
-		msgs.notice.data="Player "+NAME[n.exit]+" has won!";
+		msgs.notice.data="Player "+NAME["p"+n.exit]+" has won!";
 		add_class(msgs.notice.parentNode,"p"+n.exit);
 		return;
 	}
@@ -263,9 +314,9 @@ var update_current=function() {
 		initiate_move(last);
 	} else {
 		if (selected_ai[current.player]) {
-			var move = selected_ai[current.player]();
+			var move = selected_ai[current.player](ai_data[current.player]);
 			if (!move) {
-				msgs.notice.data="Player "+NAME[n.exit]+" has given up!";
+				msgs.notice.data="Player "+NAME[current.player]+" has given up!";
 				add_class(msgs.notice.parentNode,"p"+n.exit);
 				current.can_move=false;
 				return;
@@ -292,14 +343,16 @@ var onload=function(){
 	var points=add("g",root,{class:"points"});
 	msgs.notice = document.createTextNode("Welcome to Graph Walker.");
 	add("text",root,{x:0,y:0.93,width:2,height:0.1}).appendChild(msgs.notice);
-	msgs.p1 = document.createTextNode("Player "+NAME[1]);
+	msgs.p1 = document.createTextNode("Player "+NAME.p1);
 	add("text",root,{x:-0.5,y:-0.87,width:2,height:0.1,class:"p1"}).appendChild(msgs.p1);
-	msgs.p2 = document.createTextNode("Player "+NAME[2]);
+	msgs.p2 = document.createTextNode("Player "+NAME.p2);
 	add("text",root,{x: 0.5,y:-0.87,width:2,height:0.1,class:"p2"}).appendChild(msgs.p2);
 
 	// Create nodes and edges svg-elements.
 	for (var i in map) {
 		var n=map[i];
+		// Create exit lists.
+		if (n.exit) exits["p"+n.exit].push(n);
 		// Create the node.
 		n.element=add("circle",points,{cx:n.x,cy:n.y,r:DEFAULT_DOT_RADIUS});
 		if (n.exit) n.element.setAttribute("class",["","exit p1","exit p2"][n.exit]);
@@ -329,7 +382,7 @@ var onload=function(){
 		add("animate",c,{attributeName:"stroke-width", dur:"2s", begin:-i, values:".02;0", repeatCount:"indefinite"});
 	}
 	add("circle",current.anim,{cx:0,cy:0,r:DEFAULT_DOT_RADIUS});
-	current.translate = add("animateTransform",current.anim,{attributeName:"transform", type:"translate", begin: "indefinite", dur:0.5, fill:"freeze"});
+	current.translate = add("animateTransform",current.anim,{attributeName:"transform", type:"translate", begin: "indefinite", dur:MOVE_DURATION, fill:"freeze"});
 	current.translate.addEventListener("endEvent", update_current, false);
 	update_current();
 }
