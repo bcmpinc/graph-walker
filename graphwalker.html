@@ -12,7 +12,7 @@ text {font-size:0.1; text-anchor:middle; stroke-width:0;}
 .grid{stroke:gray; stroke-width:.003;}
 .grid .used{stroke-width:.015;}
 
-.current{fill:transparent !important; stroke:black;}
+.current{fill:transparent !important; stroke:black; stroke-width:0;}
 
 .points{fill:gray; stroke:black !important;stroke-width:.005;}
 .points .near{stroke-width:.01;}
@@ -26,6 +26,7 @@ var SVG="http://www.w3.org/2000/svg";
 var SCALE=1/8+1/32;
 var DEFAULT_DOT_RADIUS=0.02;
 var NEAR_DOT_RADIUS=0.03;
+var NAME=["","Red","Blue"];
 
 // Create and append a new element
 // Don't use style in pars. Gives 'component not available' exception.
@@ -128,9 +129,9 @@ var is_move_valid=function(n) {
 // Checks whether the move is actually valid.
 // If this is the case, change the position to the given node.
 // Updating status and visual information of points and the walked edge.
-var update_current=function(n) {
+var initiate_move=function(n) {
 	// Verify that the game is still running
-	if (current.node.exit) return;
+	if (!current.can_move) return;
 	
 	// Check if the clicked node is a valid move.
 	if (!is_move_valid(n)) return;
@@ -144,26 +145,39 @@ var update_current=function(n) {
 		e.b.element.setAttribute("r",DEFAULT_DOT_RADIUS);
 	}
 
+	// mark previous node as used. visualize new node (temporarily) as unused.
+	if (n!=current.node) {
+		add_class(current.node.element,"used");
+		current.node.used=true;
+		remove_class(n.element,"used");
+	}
+
 	// Move animation & current point color.
-	current.anim.setAttribute("transform","translate("+n.x+","+n.y+")");
+	// current.anim.setAttribute("transform","translate("+n.x+","+n.y+")");
+	current.translate.setAttribute("values",current.node.x+","+current.node.y+";"+n.x+","+n.y);
+	current.translate.beginElement();
+
+	// Remove color from current node
 	remove_class(current.node.element,current.player);
+	current.node=n;
+	current.can_move=false;
+}
+var update_current=function() {
+	var n = current.node;
+	if (n.exit) {
+		// Provide end-of game message.
+		msgs.notice.data="Player "+NAME[n.exit]+" has won!";
+		add_class(msgs.notice.parentNode,"p"+n.exit);
+		return;
+	}
+	current.can_move=true;
 	if (!n.used) {
 		// Change player if an unused node is hit.
 		remove_class(current.anim,current.player);
 		current.player = (current.player=="p1")?"p2":"p1";
 		add_class(current.anim,current.player);
-		if (n.exit) {
-			msgs.notice.data="Player "+n.exit+" has won!";
-			add_class(msgs.notice.parentNode,"p"+n.exit);
-			return;
-		}
 	}
 	add_class(n.element,current.player);
-
-	// mark previous node as used. mark new node (temporarily) as unused.
-	add_class(current.node.element,"used");
-	current.node.used=true;
-	remove_class(n.element,"used");
 
 	// Create new allowed move markers
 	var last=false;
@@ -178,14 +192,13 @@ var update_current=function(n) {
 			options++;
 		}
 	}
-	current.node=n;
 
 	if (options==0) {
 		// Check for a tie.
 		msgs.notice.data="The game is a tie!";
 	} else if (options==1) {
 		// Only one valid move available, so execute it immediately.
-		update_current(last);
+		initiate_move(last);
 	}
 }
 
@@ -193,7 +206,7 @@ var update_current=function(n) {
 var add_move_handler=function(n) {
 	n.element.addEventListener("click",function() {
 		// Attempt to change the current position.
-		update_current(n);
+		initiate_move(n);
 	},false);
 }
 
@@ -205,9 +218,9 @@ var onload=function(){
 	var points=add("g",root,{class:"points"});
 	msgs.notice = document.createTextNode("Welcome to Graph Walker.");
 	add("text",root,{x:0,y:0.93,width:2,height:0.1}).appendChild(msgs.notice);
-	msgs.p1 = document.createTextNode("Player 1");
+	msgs.p1 = document.createTextNode("Player "+NAME[1]);
 	add("text",root,{x:-0.5,y:-0.87,width:2,height:0.1,class:"p1"}).appendChild(msgs.p1);
-	msgs.p2 = document.createTextNode("Player 2");
+	msgs.p2 = document.createTextNode("Player "+NAME[2]);
 	add("text",root,{x: 0.5,y:-0.87,width:2,height:0.1,class:"p2"}).appendChild(msgs.p2);
 
 	// Create nodes and edges svg-elements.
@@ -236,7 +249,10 @@ var onload=function(){
 		add("animate",c,{attributeName:"r", dur:"2s", begin:-i, values:".01;.05", repeatCount:"indefinite"});
 		add("animate",c,{attributeName:"stroke-width", dur:"2s", begin:-i, values:".02;0", repeatCount:"indefinite"});
 	}
-	update_current(current.node);
+	add("circle",current.anim,{cx:0,cy:0,r:DEFAULT_DOT_RADIUS});
+	current.translate = add("animateTransform",current.anim,{attributeName:"transform", type:"translate", begin: "indefinite", dur:0.5, fill:"freeze"});
+	current.translate.addEventListener("endEvent", update_current, false);
+	update_current();
 }
 window.addEventListener("load",onload,false);
 </script>
