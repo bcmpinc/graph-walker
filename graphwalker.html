@@ -12,7 +12,8 @@ text {font-size:0.1; text-anchor:middle; stroke-width:0;}
 .grid{stroke:gray; stroke-width:.003;}
 .grid .used{stroke-width:.015;}
 
-.current{fill:transparent !important; stroke:black; stroke-width:0;}
+.current .wave{fill:transparent !important;}
+.current {stroke:black; stroke-width:0;}
 
 .points{fill:gray; stroke:black !important;stroke-width:.005;}
 .points .near{stroke-width:.01;}
@@ -245,7 +246,7 @@ var onload=function(){
 
 	// Create current animation.
 	for (var i=0; i<2; i++) {
-		var c=add("circle",current.anim,{cx:0,cy:0,r:0});
+		var c=add("circle",current.anim,{cx:0,cy:0,r:0,class:"wave"});
 		add("animate",c,{attributeName:"r", dur:"2s", begin:-i, values:".01;.05", repeatCount:"indefinite"});
 		add("animate",c,{attributeName:"stroke-width", dur:"2s", begin:-i, values:".02;0", repeatCount:"indefinite"});
 	}
