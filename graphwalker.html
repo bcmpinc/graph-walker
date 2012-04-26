@@ -30,12 +30,12 @@ text.ng:hover{fill:black;cursor:pointer;}
 <style id="player_colors">
 </style>
 <script>
+// Static globals.
 var SVG="http://www.w3.org/2000/svg"; // svg namespace
 var XHTML="http://www.w3.org/1999/xhtml"; // xhtml namespace
 var SCALE=1/8+1/32;
 var DEFAULT_DOT_RADIUS=0.02;
 var NEAR_DOT_RADIUS=0.03;
-var NAME={p1:"Red",p2:"Blue"};
 var MOVE_DURATION=0.25;
 var GLOBAL=this;
 var $=function(a){return document.getElementById(a);};
@@ -301,7 +301,7 @@ var update_current=function() {
 	var n = current.node;
 	if (n.exit) {
 		// Provide end-of game message.
-		msgs.notice.data="Player "+NAME["p"+n.exit]+" has won!";
+		msgs.notice.data=localStorage["name_p"+n.exit]+" has won!";
 		add_class(msgs.notice.parentNode,"p"+n.exit);
 		return;
 	}
@@ -338,8 +338,8 @@ var update_current=function() {
 		if (selected_ai[current.player]) {
 			var move = selected_ai[current.player](ai_data[current.player]);
 			if (!move) {
-				msgs.notice.data="Player "+NAME[current.player]+" has given up!";
-				add_class(msgs.notice.parentNode,"p"+n.exit);
+				msgs.notice.data=localStorage["name_"+current.player]+" has given up!";
+				add_class(msgs.notice.parentNode,current.player);
 				current.can_move=false;
 				return;
 			} else {
@@ -369,9 +369,9 @@ var build_interface=function(){
 	var points=add("g",root,{class:"points"});
 	msgs.notice = document.createTextNode("Welcome to Graph Walker.");
 	add("text",root,{x:0,y:0.93,width:2,height:0.1}).appendChild(msgs.notice);
-	msgs.p1 = document.createTextNode("Player "+NAME.p1);
+	msgs.p1 = document.createTextNode(localStorage.name_p1);
 	add("text",root,{x:-0.5,y:-0.87,width:2,height:0.1,class:"p1"}).appendChild(msgs.p1);
-	msgs.p2 = document.createTextNode("Player "+NAME.p2);
+	msgs.p2 = document.createTextNode(localStorage.name_p2);
 	add("text",root,{x: 0.5,y:-0.87,width:2,height:0.1,class:"p2"}).appendChild(msgs.p2);
 	msgs.ng = document.createTextNode("New Game");
 	add("text",root,{x:-0.5,y:0.93,width:2,height:0.1,class:"ng",transform:"rotate(-90)"}).appendChild(msgs.ng);
@@ -418,14 +418,16 @@ var build_interface=function(){
 
 // Starts a new game, destroying the previous one.
 var new_game=function() {
-	var cp1=$("color_p1").value;
-	var cp2=$("color_p2").value;
+	localStorage.color_p1=$("color_p1").value;
+	localStorage.color_p2=$("color_p2").value;
 	$("player_colors").textContent=
-		"svg .p1{fill:"+cp1+"; stroke:"+cp1+";}\n" +
-		"svg .p2{fill:"+cp2+"; stroke:"+cp2+";}\n";
-	NAME.p1=$("name_p1").value;
-	NAME.p2=$("name_p2").value;
-	GLOBAL.selected_ai={p1:AI[$("ai_p1").selectedIndex].fun,p2:AI[$("ai_p2").selectedIndex].fun};
+		"svg .p1{fill:"+localStorage.color_p1+"; stroke:"+localStorage.color_p1+";}\n" +
+		"svg .p2{fill:"+localStorage.color_p2+"; stroke:"+localStorage.color_p2+";}\n";
+	localStorage.name_p1=$("name_p1").value;
+	localStorage.name_p2=$("name_p2").value;
+	localStorage.ai_p1=$("ai_p1").selectedIndex;
+	localStorage.ai_p2=$("ai_p2").selectedIndex;
+	GLOBAL.selected_ai={p1:AI[localStorage.ai_p1].fun,p2:AI[localStorage.ai_p2].fun};
 	reset();
 	create_map();
 	build_interface();
@@ -435,19 +437,21 @@ var new_game=function() {
 
 // initialize
 var init=function() {
-	$("name_p1").value=NAME.p1;
-	$("name_p2").value=NAME.p2;
-	$("color_p1").value="red";
-	$("color_p2").value="blue";
+	$("name_p1").value=localStorage.name_p1||"Player Red";
+	$("name_p2").value=localStorage.name_p2||"Player Blue";
+	$("color_p1").value=localStorage.color_p1||"red";
+	$("color_p2").value=localStorage.color_p2||"blue";
 	$("newgame").addEventListener("click",new_game,false);
 	$("cancel").addEventListener("click",function(){$("form").style.display="none";});
 	$("cancel").style.display="none";
-	AIP=[$("ai_p1"),$("ai_p2")];
-	for (j in AIP) {
+	var aip=[$("ai_p1"),$("ai_p2")];
+	for (j in aip) {
 		for (i in AI) {
-			add("option",AIP[j],{},XHTML).appendChild(document.createTextNode(AI[i].name));
+			add("option",aip[j],{},XHTML).appendChild(document.createTextNode(AI[i].name));
 		}
 	}
+	$("ai_p1").selectedIndex=localStorage.ai_p1||2;
+	$("ai_p2").selectedIndex=localStorage.ai_p2||0;
 	//new_game();
 }
 window.addEventListener("load",init,false);
