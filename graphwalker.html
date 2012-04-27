@@ -57,6 +57,7 @@ var MOVE_DURATION=0.25;
 var GLOBAL=this;
 var $=function(a){return document.getElementById(a);};
 var AI=[];
+var LS=localStorage?localStorage:{}
 
 // Create and append a new element
 // Don't use style in pars. Gives 'component not available' exception.
@@ -318,7 +319,7 @@ var update_current=function() {
 	var n = current.node;
 	if (n.exit) {
 		// Provide end-of game message.
-		msgs.notice.data=localStorage["name_p"+n.exit]+" has won!";
+		msgs.notice.data=LS["name_p"+n.exit]+" has won!";
 		add_class(msgs.notice.parentNode,"p"+n.exit);
 		return;
 	}
@@ -355,7 +356,7 @@ var update_current=function() {
 		if (selected_ai[current.player]) {
 			var move = selected_ai[current.player](ai_data[current.player]);
 			if (!move) {
-				msgs.notice.data=localStorage["name_"+current.player]+" has given up!";
+				msgs.notice.data=LS["name_"+current.player]+" has given up!";
 				add_class(msgs.notice.parentNode,current.player);
 				current.can_move=false;
 				return;
@@ -386,9 +387,9 @@ var build_interface=function(){
 	var points=add("g",root,{class:"points"});
 	msgs.notice = document.createTextNode("Welcome to Graph Walker.");
 	add("text",root,{x:0,y:0.93,width:2,height:0.1}).appendChild(msgs.notice);
-	msgs.p1 = document.createTextNode(localStorage.name_p1);
+	msgs.p1 = document.createTextNode(LS.name_p1);
 	add("text",root,{x:-0.5,y:-0.87,width:2,height:0.1,class:"p1"}).appendChild(msgs.p1);
-	msgs.p2 = document.createTextNode(localStorage.name_p2);
+	msgs.p2 = document.createTextNode(LS.name_p2);
 	add("text",root,{x: 0.5,y:-0.87,width:2,height:0.1,class:"p2"}).appendChild(msgs.p2);
 	msgs.ng = document.createTextNode("New Game");
 	add("text",root,{x:-0.5,y:0.93,width:2,height:0.1,class:"ng",transform:"rotate(-90)"}).appendChild(msgs.ng);
@@ -435,16 +436,16 @@ var build_interface=function(){
 
 // Starts a new game, destroying the previous one.
 var new_game=function() {
-	localStorage.color_p1=$("color_p1").value;
-	localStorage.color_p2=$("color_p2").value;
+	LS.color_p1=$("color_p1").value;
+	LS.color_p2=$("color_p2").value;
 	$("player_colors").textContent=
-		"svg .p1{fill:"+localStorage.color_p1+"; stroke:"+localStorage.color_p1+";}\n" +
-		"svg .p2{fill:"+localStorage.color_p2+"; stroke:"+localStorage.color_p2+";}\n";
-	localStorage.name_p1=$("name_p1").value;
-	localStorage.name_p2=$("name_p2").value;
-	localStorage.ai_p1=$("ai_p1").selectedIndex;
-	localStorage.ai_p2=$("ai_p2").selectedIndex;
-	GLOBAL.selected_ai={p1:AI[localStorage.ai_p1].fun,p2:AI[localStorage.ai_p2].fun};
+		"svg .p1{fill:"+LS.color_p1+"; stroke:"+LS.color_p1+";}\n" +
+		"svg .p2{fill:"+LS.color_p2+"; stroke:"+LS.color_p2+";}\n";
+	LS.name_p1=$("name_p1").value;
+	LS.name_p2=$("name_p2").value;
+	LS.ai_p1=$("ai_p1").selectedIndex;
+	LS.ai_p2=$("ai_p2").selectedIndex;
+	GLOBAL.selected_ai={p1:AI[LS.ai_p1].fun,p2:AI[LS.ai_p2].fun};
 	reset();
 	create_map();
 	build_interface();
@@ -454,10 +455,10 @@ var new_game=function() {
 
 // initialize
 var init=function() {
-	$("name_p1").value=localStorage.name_p1||"Player Red";
-	$("name_p2").value=localStorage.name_p2||"Player Blue";
-	$("color_p1").value=localStorage.color_p1||"red";
-	$("color_p2").value=localStorage.color_p2||"blue";
+	$("name_p1").value=LS.name_p1||"Player Red";
+	$("name_p2").value=LS.name_p2||"Player Blue";
+	$("color_p1").value=LS.color_p1||"red";
+	$("color_p2").value=LS.color_p2||"blue";
 	$("newgame").addEventListener("click",new_game,false);
 	$("cancel").addEventListener("click",function(){$("form").style.display="none";});
 	$("cancel").style.display="none";
@@ -467,8 +468,8 @@ var init=function() {
 			add("option",aip[j],{},XHTML).appendChild(document.createTextNode(AI[i].name));
 		}
 	}
-	$("ai_p1").selectedIndex=localStorage.ai_p1||2;
-	$("ai_p2").selectedIndex=localStorage.ai_p2||0;
+	$("ai_p1").selectedIndex=LS.ai_p1||2;
+	$("ai_p2").selectedIndex=LS.ai_p2||0;
 	//new_game();
 }
 window.addEventListener("load",init,false);
