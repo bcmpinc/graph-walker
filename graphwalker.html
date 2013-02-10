@@ -1,21 +1,21 @@
 <?xml version="1.0" standalone="yes"?>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <!--
-    Graph walker - A simple 2-player graph walking game.
-    Copyright (C) 2012  B. Conijn <bcmpinc@users.sourceforge.net>
+		Graph walker - A simple 2-player graph walking game.
+		Copyright (C) 2012  B. Conijn <bcmpinc@users.sourceforge.net>
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+		This program is free software: you can redistribute it and/or modify
+		it under the terms of the GNU General Public License as published by
+		the Free Software Foundation, either version 3 of the License, or
+		(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+		This program is distributed in the hope that it will be useful,
+		but WITHOUT ANY WARRANTY; without even the implied warranty of
+		MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+		GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+		You should have received a copy of the GNU General Public License
+		along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 <head>
 <title>Graph walker game</title>
@@ -27,16 +27,16 @@ div.ng{position: fixed; top:0; bottom:0; left:0; right:0; background: rgba(0,0,0
 table input{width: 100px;}
 
 svg{width:500px; height:500px; border: 2px solid black; background:white;}
-text{font-size:0.1; text-anchor:middle; stroke-width:0;}
-.grid{stroke:gray; stroke-width:.003;}
-.grid .used{stroke-width:.015;}
-.grid .pruned{stroke-width:.015;stroke:lightgray;}
+text{font-size:100; text-anchor:middle; stroke:none !important; stroke-width:0 !important;}
+.grid{stroke:gray; stroke-width:3;}
+.grid .used{stroke-width:15;}
+.grid .pruned{stroke-width:15;stroke:lightgray;}
 
 .current .wave{fill:transparent !important;}
 .current {stroke:black; stroke-width:0;}
 
-.points{fill:black; stroke:black !important;stroke-width:.005;}
-.points .near{stroke-width:.01; cursor:pointer; pointer-events: all;}
+.points{fill:black; stroke:black !important;stroke-width:5;}
+.points .near{stroke-width:10; cursor:pointer; pointer-events: all;}
 .points .used{fill:gray;}
 .points .pruned{fill:white;stroke:lightgray;}
 .initial{stroke:black;}
@@ -49,9 +49,9 @@ text.ng:hover{fill:black;}
 // Static globals.
 var SVG="http://www.w3.org/2000/svg"; // svg namespace
 var XHTML="http://www.w3.org/1999/xhtml"; // xhtml namespace
-var SCALE=1/8+1/32;
-var DEFAULT_DOT_RADIUS=0.02;
-var NEAR_DOT_RADIUS=0.03;
+var SCALE=160;
+var DEFAULT_DOT_RADIUS=20;
+var NEAR_DOT_RADIUS=30;
 var MOVE_DURATION=0.25;
 var GLOBAL=this;
 var $=function(a){return document.getElementById(a);};
@@ -424,6 +424,7 @@ var initiate_move=function(n) {
 	// current.anim.setAttribute("transform","translate("+n.x+","+n.y+")");
 	current.translate.setAttribute("values",current.node.x+","+current.node.y+";"+n.x+","+n.y);
 	current.translate.beginElement();
+	setTimeout(update_current, MOVE_DURATION*1000);
 
 	// Remove color from current node
 	remove_class(current.node.element,current.player);
@@ -501,17 +502,18 @@ var build_interface=function(){
 	// Remove any old interace
 	while (root.childNodes.length>0) root.removeChild(root.lastChild);
 	// Build the new one
+	var texts=add("g",root,{class:"text"});
 	var grid=add("g",root,{class:"grid"});
 	current.anim=add("g",root,{class:"current"});
 	var points=add("g",root,{class:"points"});
 	msgs.notice = document.createTextNode("Welcome to Graph Walker.");
-	add("text",root,{x:0,y:0.93,width:2,height:0.1}).appendChild(msgs.notice);
+	add("text",texts,{x:0,y:930}).appendChild(msgs.notice);
 	msgs.p1 = document.createTextNode(LS.name_p1);
-	add("text",root,{x:-0.5,y:-0.87,width:2,height:0.1,class:"p1"}).appendChild(msgs.p1);
+	add("text",texts,{x:-500,y:-870,class:"p1"}).appendChild(msgs.p1);
 	msgs.p2 = document.createTextNode(LS.name_p2);
-	add("text",root,{x: 0.5,y:-0.87,width:2,height:0.1,class:"p2"}).appendChild(msgs.p2);
+	add("text",texts,{x: 500,y:-870,class:"p2"}).appendChild(msgs.p2);
 	msgs.ng = document.createTextNode("New Game");
-	add("text",root,{x:-0.5,y:0.93,width:2,height:0.1,class:"ng",transform:"rotate(-90)"}).appendChild(msgs.ng);
+	add("text",texts,{x:-500,y:930,class:"ng",transform:"rotate(-90)"}).appendChild(msgs.ng);
 	msgs.ng.parentNode.addEventListener("click",function(){$("form").style.display="block";});
 
 	// Create nodes and edges svg-elements.
@@ -544,12 +546,12 @@ var build_interface=function(){
 	// Create current animation.
 	for (var i=0; i<2; i++) {
 		var c=add("circle",current.anim,{cx:0,cy:0,r:0,class:"wave"});
-		add("animate",c,{attributeName:"r", dur:"2s", begin:-i, values:".01;.05", repeatCount:"indefinite"});
-		add("animate",c,{attributeName:"stroke-width", dur:"2s", begin:-i, values:".02;0", repeatCount:"indefinite"});
+		add("animate",c,{attributeName:"r", dur:"2s", begin:-i, values:"10;50", repeatCount:"indefinite"});
+		add("animate",c,{attributeName:"stroke-width", dur:"2s", begin:-i, values:"20;0", repeatCount:"indefinite"});
 	}
 	add("circle",current.anim,{cx:0,cy:0,r:DEFAULT_DOT_RADIUS});
 	current.translate = add("animateTransform",current.anim,{attributeName:"transform", type:"translate", begin: "indefinite", dur:MOVE_DURATION, fill:"freeze"});
-	current.translate.addEventListener("endEvent", update_current, false);
+	//current.translate.addEventListener("endEvent", update_current, false);
 	update_current();
 }
 
@@ -595,10 +597,11 @@ window.addEventListener("load",init,false);
 </script>
 </head>
 <body>
-<svg xmlns="http://www.w3.org/2000/svg" viewbox="-1 -1 2 2" id="root"></svg></body>
+<svg xmlns="http://www.w3.org/2000/svg" viewbox="-1000 -1000 2000 2000" id="root"></svg></body>
 <div class="ng" id="form"><form><h1>Graph Walker</h1><table>
 <tr><td></td><th>Name</th><th>Color</th><th>AI</th></tr>
 <tr><td>1</td><td><input id="name_p1"></td><td><input id="color_p1"></td><td><select id="ai_p1"></select></td></tr>
 <tr><td>2</td><td><input id="name_p2"></td><td><input id="color_p2"></td><td><select id="ai_p2"></select></td></tr>
 </table><input type="button" id="newgame" value="New Game"><input type="button" id="cancel" value="Cancel"></form></div>
 </html>
+<!-- kate: space-indent off; indent-width 2; -->
