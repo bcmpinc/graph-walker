@@ -29,6 +29,10 @@ var ai=function(name, fun) {
 	AI.push(this);
 }
 
+var random_prime_multiplier = function() {
+	return [2063,2069,2081,2083,2087,2089,2099,2111,2113,2129][Math.floor(Math.random()*10)];
+}
+
 // An ai must be a function that accepts one parameter.
 // This parameter is the persistent data storage for use by the ai.
 // The ai must either return the node it wants to move to, or otherwise
@@ -40,7 +44,7 @@ new ai("Human",0);
 new ai("Random player",function(data) {
 	var N = current.node.edges.length;
 	var s = Math.floor(Math.random()*N);
-	var m = [2063,2069,2081,2083,2087,2089,2099,2111,2113,2129][Math.floor(Math.random()*N)];
+	var m = random_prime_multiplier();
 	for (var i=0; i<N; i++) {
 		var e = current.node.edges[(s+i*m)%N];
 		if (!e.used) {
@@ -57,13 +61,13 @@ new ai("Shortest path",function(data) {
 	var queue = [];
 	var distance = {};
 	var e = exits[current.player];
-	for (i in e) {
+	for (var i in e) {
 		queue.push(e[i]);
 		distance[e[i]]=0;
 	}
 	while (queue.length>0) {
 		var n = queue.shift();
-		for (i in n.edges) {
+		for (var i in n.edges) {
 			var e = n.edges[i];
 			if (!e.used) {
 				var m = e.a==n?e.b:e.a;
@@ -81,7 +85,7 @@ new ai("Shortest path",function(data) {
 	// Pick randomly an edge that reduces the distance.
 	var N = current.node.edges.length;
 	var s = Math.floor(Math.random()*N);
-	var m = [2063,2069,2081,2083,2087,2089,2099,2111,2113,2129][Math.floor(Math.random()*N)];
+	var m = random_prime_multiplier();
 	for (var i=0; i<N; i++) {
 		var e = current.node.edges[(s+i*m)%N];
 		if (!e.used) {
@@ -98,7 +102,7 @@ new ai("Shortest turns",function(data) {
 	var queue2 = []; // move to visited point
 	var distance = {};
 	var e = exits[current.player];
-	for (i in e) {
+	for (var i in e) {
 		queue1.push(e[i]);
 		distance[e[i]]=[0,0];
 	}
@@ -107,7 +111,7 @@ new ai("Shortest turns",function(data) {
 			var n = queue2.shift();
 		else
 			var n = queue1.shift();
-		for (i in n.edges) {
+		for (var i in n.edges) {
 			var e = n.edges[i];
 			if (!e.used) {
 				var m = e.a==n?e.b:e.a;
@@ -130,7 +134,7 @@ new ai("Shortest turns",function(data) {
 	// Pick randomly an edge that reduces the distance.
 	var N = current.node.edges.length;
 	var s = Math.floor(Math.random()*N);
-	var m = [2063,2069,2081,2083,2087,2089,2099,2111,2113,2129][Math.floor(Math.random()*N)];
+	var m = random_prime_multiplier();
 	for (var i=0; i<N; i++) {
 		var e = current.node.edges[(s+i*m)%N];
 		if (!e.used) {
@@ -148,7 +152,7 @@ new ai("Annoying",function(data) {
 	var queue2 = []; // move to visited point
 	var distance = {};
 	var e = exits[current.player=="p1"?"p2":"p1"];
-	for (i in e) {
+	for (var i in e) {
 		queue1.push(e[i]);
 		distance[e[i]]=[0,0];
 	}
@@ -157,7 +161,7 @@ new ai("Annoying",function(data) {
 			var n = queue2.shift();
 		else
 			var n = queue1.shift();
-		for (i in n.edges) {
+		for (var i in n.edges) {
 			var e = n.edges[i];
 			if (!e.used) {
 				var m = e.a==n?e.b:e.a;
@@ -180,7 +184,7 @@ new ai("Annoying",function(data) {
 	// Pick randomly an edge that reduces the distance.
 	var N = current.node.edges.length;
 	var s = Math.floor(Math.random()*N);
-	var m = [2063,2069,2081,2083,2087,2089,2099,2111,2113,2129][Math.floor(Math.random()*N)];
+	var m = random_prime_multiplier();
 	for (var i=0; i<N; i++) { // try a free move first.
 		var e = current.node.edges[(s+i*m)%N];
 		if (!e.used) {
