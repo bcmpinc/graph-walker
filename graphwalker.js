@@ -361,26 +361,26 @@ var new_game=function() {
 var init=function() {
 	// Create header elements
 	add("style", document.head, {}, XHTML).textContent = 
-'#game{text-align:center;}\
-form{margin: 100px auto; display:table; border:2px solid black; background:white;}\
-div.ng{position: fixed; top:0; bottom:0; left:0; right:0; background: rgba(0,0,0,0.1);}\
-table input{width: 100px;}\
-\
-svg{width:500px; height:500px; border: 2px solid black; background:white;}\
-text{font-size:100; text-anchor:middle; stroke:none !important; stroke-width:0 !important;}\
-.grid{stroke:gray; stroke-width:3;}\
-.grid .used{stroke-width:15;}\
-.grid .pruned{stroke-width:15;stroke:lightgray;}\
-\
-.current .wave{fill:transparent !important;}\
-.current {stroke:black; stroke-width:0;}\
-\
-.points{fill:black; stroke:black !important;stroke-width:5;}\
-.points .near{stroke-width:10; cursor:pointer; pointer-events: all;}\
-.points .used{fill:gray;}\
-.points .pruned{fill:white;stroke:lightgray;}\
-.initial{stroke:black;}\
-text.ng{fill:gray;cursor:pointer;}\
+'#game{text-align:center;}\n\
+form{margin: 100px auto; display:table; border:2px solid black; background:white;}\n\
+div.ng{position: fixed; top:0; bottom:0; left:0; right:0; background: rgba(0,0,0,0.1);}\n\
+table input{width: 100px;}\n\
+\n\
+svg{width:500px; height:500px; border: 2px solid black; background:white;}\n\
+text{font-size:100px; text-anchor:middle; stroke:none !important; stroke-width:0 !important;}\n\
+.grid{stroke:gray; stroke-width:3;}\n\
+.grid .used{stroke-width:15;}\n\
+.grid .pruned{stroke-width:15;stroke:lightgray;}\n\
+\n\
+.current .wave{fill:transparent !important;}\n\
+.current {stroke:black; stroke-width:0;}\n\
+\n\
+.points{fill:black; stroke:black !important;stroke-width:5;}\n\
+.points .near{stroke-width:10; cursor:pointer; pointer-events: all;}\n\
+.points .used{fill:gray;}\n\
+.points .pruned{fill:white;stroke:lightgray;}\n\
+.initial{stroke:black;}\n\
+text.ng{fill:gray;cursor:pointer;}\n\
 text.ng:hover{fill:black;}';
 	add("style", document.head, {id: "player_colors"}, XHTML);
 
@@ -390,7 +390,7 @@ text.ng:hover{fill:black;}';
 	var form = add("div", game, {id: "form", class: "ng"},XHTML);
 	form.innerHTML=
 '<form><h1>Graph Walker</h1><table>\
-<tr><td></td><th>Name</th><th>Color</th><th>AI</th></tr>\
+<tr><th></th><th>Name</th><th>Color</th><th>AI</th></tr>\
 <tr><td>1</td><td><input id="name_p1"></td><td><input id="color_p1"></td><td><select id="ai_p1"></select></td></tr>\
 <tr><td>2</td><td><input id="name_p2"></td><td><input id="color_p2"></td><td><select id="ai_p2"></select></td></tr>\
 </table><input type="button" id="newgame" value="New Game"><input type="button" id="cancel" value="Cancel"></form>';
