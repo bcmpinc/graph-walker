@@ -416,6 +416,5 @@ text.ng:hover{fill:black;}';
 	//new_game();
 }
 
-add("script", document.head, {src: "gw-ai.js"}, XHTML);
 window.addEventListener("load",init,false);
 // kate: space-indent off; indent-width 2; 
