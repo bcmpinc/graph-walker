@@ -103,9 +103,11 @@ var hexagonal_grid = function(size) {
 // Connects a grid
 // dx and dy are equal length arrays with offsets that need to be connected.
 // bounds (optional) is another equal length array, that tells whether the connection can be a boundary edge.
-var connect=function(grid, dx, dy, bounds=[]) {
+var connect_nodes=function(grid, dx, dy, bounds) {
 	// create edges
 	N = dx.length;
+	
+	if (!bounds) bounds = [];
 	
 	for (var p1 in grid) {
 		g1 = grid[p1];
@@ -127,14 +129,14 @@ new map("Original", function(){
 	var dx=[1,1,1,0];
 	var dy=[-1,0,1,1];
 	var bounds=[0,1,0,1];
-	connect(grid, dx, dy, bounds);
+	connect_nodes(grid, dx, dy, bounds);
 });
 
 new map("Horse", function(){
 	var grid = rectangular_grid(5);
 	var dx=[-2,2,-1,1];
 	var dy=[1,1,2,2];
-	connect(grid, dx, dy);
+	connect_nodes(grid, dx, dy);
 });
 
 new map("Hexagon", function(){
@@ -142,7 +144,7 @@ new map("Hexagon", function(){
 	var dx=[0,1,1];
 	var dy=[1,0,1];
 	var bounds=[1,1,1];
-	connect(grid, dx, dy, bounds);
+	connect_nodes(grid, dx, dy, bounds);
 });
 
 new map("Hexagon dense", function(){
@@ -150,7 +152,7 @@ new map("Hexagon dense", function(){
 	var dx=[0,1,1,2,1,1];
 	var dy=[1,0,1,1,2,-1];
 	var bounds=[1,1,1,0,0,0];
-	connect(grid, dx, dy, bounds);
+	connect_nodes(grid, dx, dy, bounds);
 });
 
 // kate: space-indent off; indent-width 2; 

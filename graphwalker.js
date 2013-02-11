@@ -56,6 +56,17 @@ var remove_class=function(e,cls) {
 	else e.removeAttribute("class");
 }
 
+var generate_uid = function(){
+	var string = navigator.userAgent;
+	var hash = new Date().getTime(), i, char;
+	for (i = 0; i < string.length; i++) {
+		hash = ((hash<<5)-hash)+string.charCodeAt(i);
+		hash = hash & hash; // Convert to 32bit integer
+	}
+	if (hash<0) hash = hash + 0x100000000;
+	return hash.toString(36);
+};
+
 // Initialize or reset non-static game specific globals.
 var reset=function() {
 	GLOBAL.map=[]; // a list of all nodes contained in the map.
@@ -239,7 +250,7 @@ var build_interface=function(){
 	add("text",texts,{x: 500,y:-870,class:"p2"}).appendChild(msgs.p2);
 	msgs.ng = document.createTextNode("New Game");
 	add("text",texts,{x:-500,y:930,class:"ng",transform:"rotate(-90)"}).appendChild(msgs.ng);
-	msgs.ng.parentNode.addEventListener("click",function(){$("form").style.display="block";});
+	msgs.ng.parentNode.addEventListener("click",function(){$("form").style.display="block"; if(NET.disconnected) {NET.disconnected = false; pusher.connect();}});
 
 	// Create nodes and edges svg-elements.
 	for (var i in map) {
@@ -286,14 +297,33 @@ var network_player=function(data) {
 		if (n) initiate_move(n);
 	}
 	current.can_move=false;
+	if (data.start) {
+		current.can_move = (current.player == NET.me);
+		NET.opponent = NET.game;
+	}
 	return true;
 }
 
 // Starts a new game, destroying the previous one.
 var new_game=function() {
-	// Make sure we are anonymous.
-	if (NET.channel && NET.channel.members.me.id!="<anonymous>") {
-		network_enter_channel({user_id: "<anonymous>"}, new_game);
+	// Sanity checking. Network player must play against human.
+	var ai1 = $("ai_p1").selectedIndex;
+	var ai2 = $("ai_p2").selectedIndex;
+	if (!AI[ai2]) ai1=0;
+	if (!AI[ai1]) ai2=0;
+	delete NET.game;
+	delete NET.opponent;
+	
+	if (AI[ai1] && AI[ai2]) {
+		$("network").disabled="disabled";
+		pusher.disconnect();
+		network_enter_channel({});
+		NET.disconnected = true;
+		NET.pending = false;
+	} else if (NET.pending) {
+		NET.pending = false;
+		// Make sure we are anonymous (in case of network play).
+		network_enter_channel({}, new_game);
 		$("form").style.display="none";
 		return;
 	}
@@ -304,16 +334,9 @@ var new_game=function() {
 	MAPS[LS.map].fun();
 	build_interface();
 
-	// Sanity checking. Network player must play against human.
-	var ai1 = $("ai_p1").selectedIndex;
-	var ai2 = $("ai_p2").selectedIndex;
-	if (!AI[ai2]) ai1=0;
-	if (!AI[ai1]) ai2=0;
-	delete NET.game;
-
 	// Select player info.
-	var color="black";
-	var name="<anonymous>";
+	var color;
+	var name;
 	if (AI[ai1]) {
 		var color_p1=LS.color_p1=$("color_p1").value;
 		color=color_p1;
@@ -323,8 +346,9 @@ var new_game=function() {
 		var ai1_fun=AI[LS.ai_p1].fun;
 	} else {
 		NET.game=$("ai_p1").options[ai1].id.slice(5);
-		msgs.p1.textContent=NET.game;
-		var color_p1=NET.channel.members.get(NET.game).info.color;
+		var info = NET.channel.members.get(NET.game).info;
+		msgs.p1.textContent=info.name;
+		var color_p1=info.color;
 		var ai1_fun=network_player;
 		var other=1;
 	}
@@ -337,8 +361,9 @@ var new_game=function() {
 		var ai2_fun=AI[LS.ai_p2].fun;
 	} else {
 		NET.game=$("ai_p2").options[ai2].id.slice(5);
-		msgs.p2.textContent=NET.game;
-		var color_p2=NET.channel.members.get(NET.game).info.color;
+		var info = NET.channel.members.get(NET.game).info;
+		msgs.p2.textContent=info.name;
+		var color_p2=info.color;
 		var ai2_fun=network_player;
 		var other=2;
 	}
@@ -346,7 +371,8 @@ var new_game=function() {
 	// Network stuff
 	if (NET.game) {
 		NET.channel.bind("client-move-"+NET.game, network_player);
-		NET.channel.trigger("client-init-"+NET.game, {map: LS.map, you:other, name:name, color: color, start: current.player});
+		NET.channel.trigger("client-init-"+NET.game, {map: LS.map, you:other, name:name, color: color, start: current.player, opponent: NET.user_id});
+		NET.me = "p"+(3-other);
 	}
 	
 	// Latest stuff
@@ -384,11 +410,8 @@ var network_game_start=function(data) {
 			"svg .p2{fill:"+color_nw+"; stroke:"+color_nw+";}\n";
 	}
 	current.player = data.start;
-	
-	// Network stuff
-	if (NET.game) {
-		NET.channel.bind("client-move-"+NET.game, network_player);
-	}
+	NET.me = "p"+data.you;
+	NET.opponent = data.opponent;
 	
 	// Latest stuff
 	$("form").style.display="none";
@@ -396,9 +419,19 @@ var network_game_start=function(data) {
 	
 	// Start!
 	update_current();
+	
+	// Network stuff
+	current.can_move = false;
+	network_enter_channel({}, function(){
+		current.can_move=(current.player==NET.me);
+		NET.channel.bind("client-move-"+NET.game, network_player);
+		NET.channel.trigger("client-move-"+NET.game, {start: 1});
+	});
 }
 
-// Starts a network game, destroying the previous one.
+// Waits for an incomming network game, destroying the previous one.
+// Updates channel info to accepting status.
+// 
 var network_game=function() {
 	LS.color_nw=$("color_nw").value;
 	LS.name_nw=$("name_nw").value;
@@ -421,22 +454,24 @@ var network_game=function() {
 	msgs.ng.parentNode.addEventListener("click",function(){$("form").style.display="block";});
 	
 	// Network stuff
-	NET.game = LS.name_nw;
-	network_enter_channel({user_id: LS.name_nw, user_info: {color: LS.color_nw}}, function(){
+	delete NET.opponent;
+	NET.game = NET.user_id;
+	NET.pending = true;
+	network_enter_channel({name: LS.name_nw, color: LS.color_nw}, function(){
 		NET.channel.bind("client-init-"+NET.game, network_game_start);
 	});
 }
 
 var network_add_user=function(data){
-	if (!data.info) return;
+	if (!data.info || !data.info.name) return;
 	var ps=["nwp1-","nwp2-"];
-	var aip=[$("ai_p1"),$("ai_p2")];
+	var aip=[$("ai_p1_nw"),$("ai_p2_nw")];
 	for(i in ps) {
 		var id = ps[i]+data.id;
 		var old = $(id);
 		if (!old) {
 			var option = add("option",aip[i],{id: id},XHTML);
-			option.appendChild(document.createTextNode(data.id));
+			option.appendChild(document.createTextNode(data.info.name));
 			option.style.color = data.info.color;
 		}
 	}
@@ -447,7 +482,11 @@ var network_enter_channel=function(info, callback) {
 	if (typeof pusher=="undefined") return;
 	if (NET.channel) pusher.unsubscribe('presence-graphwalker');
 	$("network").disabled="disabled";
-	NET.user_info = info;
+	NET.user_info = {user_id: NET.user_id, user_info: info};
+	var aip=[$("ai_p1_nw"),$("ai_p2_nw")];
+	for(i in aip) {
+		while (aip[i].childNodes.length>0) aip[i].removeChild(aip[i].lastChild);
+	}
 	setTimeout(function(){
 		NET.channel = pusher.subscribe('presence-graphwalker');
 		NET.channel.bind('pusher:subscription_succeeded', function(members) {
@@ -459,6 +498,9 @@ var network_enter_channel=function(info, callback) {
 		NET.channel.bind('pusher:member_removed', function(data) {
 			remove($("nwp1-"+data.id));
 			remove($("nwp2-"+data.id));
+			if (data.id==NET.opponent) {
+				msgs.notice.textContent = "You opponent has disconnected";
+			}
 		});
 	}, 500);
 }
@@ -527,6 +569,9 @@ text.ng:hover{fill:black;}';
 		for (var i in AI) {
 			add("option",aip[j],{},XHTML).appendChild(document.createTextNode(AI[i].name));
 		}
+		if (typeof pusher!="undefined") {
+			add("optgroup",aip[j],{id:"ai_p"+(j- -1)+"_nw",label:"Network:"},XHTML);
+		}
 	}
 
 	// Set initial info
@@ -544,7 +589,8 @@ text.ng:hover{fill:black;}';
 	$("ai_p1").selectedIndex=LS.ai_p1||3;
 	$("ai_p2").selectedIndex=LS.ai_p2||0;
 
-	network_enter_channel({user_id: "<anonymous>"});
+	NET.user_id = generate_uid();
+	network_enter_channel({});
 }
 
 window.addEventListener("load",init,false);
