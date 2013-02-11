@@ -27,6 +27,7 @@ var DEFAULT_DOT_RADIUS=20;
 var NEAR_DOT_RADIUS=30;
 var MOVE_DURATION=0.25;
 var GLOBAL=this;
+var NET={}
 var $=function(a){return document.getElementById(a);};
 var LS=localStorage?localStorage:{}
 
@@ -39,6 +40,10 @@ var add=function(nodetype,node,pars,ns){
 	}
 	node.appendChild(e);
 	return e;
+}
+
+var remove=function(e) {
+	if (e) e.parentNode.removeChild(e);
 }
 
 var add_class=function(e,cls) {
@@ -115,10 +120,10 @@ var is_move_valid=function(n) {
 // Updating status and visual information of points and the walked edge.
 var initiate_move=function(n) {
 	// Verify that the game is still running
-	if (!current.can_move) return;
+	if (!current.can_move) return false;
 	
 	// Check if the clicked node is a valid move.
-	if (!is_move_valid(n)) return;
+	if (!is_move_valid(n)) return false;
 
 	// clear previous allowed move markers
 	for (var j in current.node.edges) {
@@ -147,6 +152,7 @@ var initiate_move=function(n) {
 	prune_node(current.node);
 	current.node=n;
 	current.can_move=false;
+	return true;
 }
 
 // After finishing the animation
@@ -208,7 +214,10 @@ var add_move_handler=function(n) {
 	n.element.addEventListener("click",function() {
 		if (n==current.node) return;
 		// Attempt to change the current position.
-		initiate_move(n);
+		var moved = initiate_move(n);
+		if (NET.game && moved) {
+			NET.channel.trigger("client-move-"+NET.game, {node: n.id});
+		}
 	},false);
 }
 
@@ -224,9 +233,9 @@ var build_interface=function(){
 	var points=add("g",root,{class:"points"});
 	msgs.notice = document.createTextNode("Welcome to Graph Walker.");
 	add("text",texts,{x:0,y:930}).appendChild(msgs.notice);
-	msgs.p1 = document.createTextNode(LS.name_p1);
+	msgs.p1 = document.createTextNode("");
 	add("text",texts,{x:-500,y:-870,class:"p1"}).appendChild(msgs.p1);
-	msgs.p2 = document.createTextNode(LS.name_p2);
+	msgs.p2 = document.createTextNode("");
 	add("text",texts,{x: 500,y:-870,class:"p2"}).appendChild(msgs.p2);
 	msgs.ng = document.createTextNode("New Game");
 	add("text",texts,{x:-500,y:930,class:"ng",transform:"rotate(-90)"}).appendChild(msgs.ng);
@@ -268,30 +277,193 @@ var build_interface=function(){
 	add("circle",current.anim,{cx:0,cy:0,r:DEFAULT_DOT_RADIUS});
 	current.translate = add("animateTransform",current.anim,{attributeName:"transform", type:"translate", begin: "indefinite", dur:MOVE_DURATION, fill:"freeze"});
 	//current.translate.addEventListener("endEvent", update_current, false);
-	update_current();
+}
+
+var network_player=function(data) {
+	current.can_move=true;
+	if (data.node) {
+		var n = map[data.node];
+		if (n) initiate_move(n);
+	}
+	current.can_move=false;
+	return true;
 }
 
 // Starts a new game, destroying the previous one.
 var new_game=function() {
+	// Make sure we are anonymous.
+	if (NET.channel && NET.channel.members.me.id!="<anonymous>") {
+		network_enter_channel({user_id: "<anonymous>"}, new_game);
+		$("form").style.display="none";
+		return;
+	}
+	
+	// Create interface
 	LS.map=$("map").selectedIndex;
-	LS.color_p1=$("color_p1").value;
-	LS.color_p2=$("color_p2").value;
-	$("player_colors").textContent=
-		"svg .p1{fill:"+LS.color_p1+"; stroke:"+LS.color_p1+";}\n" +
-		"svg .p2{fill:"+LS.color_p2+"; stroke:"+LS.color_p2+";}\n";
-	LS.name_p1=$("name_p1").value;
-	LS.name_p2=$("name_p2").value;
-	LS.ai_p1=$("ai_p1").selectedIndex;
-	LS.ai_p2=$("ai_p2").selectedIndex;
-	GLOBAL.selected_ai={p1:AI[LS.ai_p1].fun,p2:AI[LS.ai_p2].fun};
 	reset();
 	MAPS[LS.map].fun();
 	build_interface();
+
+	// Sanity checking. Network player must play against human.
+	var ai1 = $("ai_p1").selectedIndex;
+	var ai2 = $("ai_p2").selectedIndex;
+	if (!AI[ai2]) ai1=0;
+	if (!AI[ai1]) ai2=0;
+	delete NET.game;
+
+	// Select player info.
+	var color="black";
+	var name="<anonymous>";
+	if (AI[ai1]) {
+		var color_p1=LS.color_p1=$("color_p1").value;
+		color=color_p1;
+		name=LS.name_p1=$("name_p1").value;
+		LS.ai_p1=ai1;
+		msgs.p1.textContent=LS.name_p1;
+		var ai1_fun=AI[LS.ai_p1].fun;
+	} else {
+		NET.game=$("ai_p1").options[ai1].id.slice(5);
+		msgs.p1.textContent=NET.game;
+		var color_p1=NET.channel.members.get(NET.game).info.color;
+		var ai1_fun=network_player;
+		var other=1;
+	}
+	if (AI[ai2]) {
+		var color_p2=LS.color_p2=$("color_p2").value;
+		color=color_p2;
+		name=LS.name_p2=$("name_p2").value;
+		LS.ai_p2=ai2;
+		msgs.p2.textContent=LS.name_p2;
+		var ai2_fun=AI[LS.ai_p2].fun;
+	} else {
+		NET.game=$("ai_p2").options[ai2].id.slice(5);
+		msgs.p2.textContent=NET.game;
+		var color_p2=NET.channel.members.get(NET.game).info.color;
+		var ai2_fun=network_player;
+		var other=2;
+	}
+	
+	// Network stuff
+	if (NET.game) {
+		NET.channel.bind("client-move-"+NET.game, network_player);
+		NET.channel.trigger("client-init-"+NET.game, {map: LS.map, you:other, name:name, color: color, start: current.player});
+	}
+	
+	// Latest stuff
+	GLOBAL.selected_ai={p1:ai1_fun,p2:ai2_fun};
+	$("player_colors").textContent=
+		"svg .p1{fill:"+color_p1+"; stroke:"+color_p1+";}\n" +
+		"svg .p2{fill:"+color_p2+"; stroke:"+color_p2+";}\n";
 	$("form").style.display="none";
 	$("cancel").style.display="inline";
+	
+	// Start!
+	update_current();
 }
 
-// initialize
+var network_game_start=function(data) {
+	// Create interface
+	reset();
+	MAPS[data.map].fun();
+	build_interface();
+
+	// Select player info.
+	if (data.you==1) {
+		msgs.p1.textContent=LS.name_nw;
+		msgs.p2.textContent=data.name;
+		GLOBAL.selected_ai={p1:0,p2:network_player};
+		$("player_colors").textContent=
+			"svg .p1{fill:"+LS.color_nw+"; stroke:"+LS.color_nw+";}\n" +
+			"svg .p2{fill:"+data.color+"; stroke:"+data.color+";}\n";
+	} else {
+		msgs.p1.textContent=data.name;
+		msgs.p2.textContent=LS.name_nw;
+		GLOBAL.selected_ai={p1:network_player,p2:0};
+		$("player_colors").textContent=
+			"svg .p1{fill:"+LS.data.color+"; stroke:"+LS.data.color+";}\n" +
+			"svg .p2{fill:"+color_nw+"; stroke:"+color_nw+";}\n";
+	}
+	current.player = data.start;
+	
+	// Network stuff
+	if (NET.game) {
+		NET.channel.bind("client-move-"+NET.game, network_player);
+	}
+	
+	// Latest stuff
+	$("form").style.display="none";
+	$("cancel").style.display="inline";
+	
+	// Start!
+	update_current();
+}
+
+// Starts a network game, destroying the previous one.
+var network_game=function() {
+	LS.color_nw=$("color_nw").value;
+	LS.name_nw=$("name_nw").value;
+	$("player_colors").textContent=
+		"svg .nw{fill:"+LS.color_nw+"; stroke:"+LS.color_nw+";}\n";
+	reset();
+	$("form").style.display="none";
+	$("cancel").style.display="inline";
+	
+	// Show a message
+	var root=$("root");
+	// Remove any old interface
+	while (root.childNodes.length>0) root.removeChild(root.lastChild);
+	// Build the new one
+	var texts=add("g",root,{class:"text"});
+	msgs.notice = document.createTextNode("Waiting for other player...");
+	add("text",texts,{x:0,y:930,class:"nw"}).appendChild(msgs.notice);
+	msgs.ng = document.createTextNode("New Game");
+	add("text",texts,{x:-500,y:930,class:"ng",transform:"rotate(-90)"}).appendChild(msgs.ng);
+	msgs.ng.parentNode.addEventListener("click",function(){$("form").style.display="block";});
+	
+	// Network stuff
+	NET.game = LS.name_nw;
+	network_enter_channel({user_id: LS.name_nw, user_info: {color: LS.color_nw}}, function(){
+		NET.channel.bind("client-init-"+NET.game, network_game_start);
+	});
+}
+
+var network_add_user=function(data){
+	if (!data.info) return;
+	var ps=["nwp1-","nwp2-"];
+	var aip=[$("ai_p1"),$("ai_p2")];
+	for(i in ps) {
+		var id = ps[i]+data.id;
+		var old = $(id);
+		if (!old) {
+			var option = add("option",aip[i],{id: id},XHTML);
+			option.appendChild(document.createTextNode(data.id));
+			option.style.color = data.info.color;
+		}
+	}
+}
+
+// Connect to multiplayer channel
+var network_enter_channel=function(info, callback) {
+	if (typeof pusher=="undefined") return;
+	if (NET.channel) pusher.unsubscribe('presence-graphwalker');
+	$("network").disabled="disabled";
+	NET.user_info = info;
+	setTimeout(function(){
+		NET.channel = pusher.subscribe('presence-graphwalker');
+		NET.channel.bind('pusher:subscription_succeeded', function(members) {
+			$("network").disabled="";
+			NET.channel.members.each(network_add_user);
+			if (callback) callback();
+		});
+		NET.channel.bind('pusher:member_added', network_add_user);
+		NET.channel.bind('pusher:member_removed', function(data) {
+			remove($("nwp1-"+data.id));
+			remove($("nwp2-"+data.id));
+		});
+	}, 500);
+}
+
+// Initialize
 var init=function() {
 	// Create header elements
 	add("style", document.head, {}, XHTML).textContent = 
@@ -339,11 +511,12 @@ text.ng:hover{fill:black;}';
 <table>\
 <tr><th></th><th>Name</th><th>Color</th><th>AI</th></tr>\
 <tr><td>1</td><td><input id="name_p1"></td><td><input id="color_p1"></td><td><select id="ai_p1"></select></td></tr>\
-<tr><td>2</td><td><input id="name_p2"></td><td><input id="color_p2"></td><td><select id="ai_p2"></select></td></tr>\
-</table><input type="button" id="newgame" value="New Game"><input type="button" id="cancel" value="Cancel"></form>';
+<tr><td>2</td><td><input id="name_p2"></td><td><input id="color_p2"></td><td><select id="ai_p2"></select></td></tr>'+
+(typeof pusher=="undefined"?'':'<tr><td> </td><td><input id="name_nw"></td><td><input id="color_nw"></td><td><input type="button" id="network" value="multiplayer" disabled="disabled"></td></tr>')+
+'</table><input type="button" id="newgame" value="New Game"/><input type="button" id="cancel" value="Cancel"/></form>';
 
 	// Fill Map combobox
-  var map = $("map")
+	var map = $("map")
 	for (var i in MAPS) {
 		add("option",map,{},XHTML).appendChild(document.createTextNode(MAPS[i].name));
 	}
@@ -359,15 +532,19 @@ text.ng:hover{fill:black;}';
 	// Set initial info
 	$("name_p1").value=LS.name_p1||"Player Red";
 	$("name_p2").value=LS.name_p2||"Player Blue";
+	$("name_nw").value=LS.name_nw||"Player";
 	$("color_p1").value=LS.color_p1||"red";
 	$("color_p2").value=LS.color_p2||"blue";
+	$("color_nw").value=LS.color_nw||"green";
 	$("newgame").addEventListener("click",new_game,false);
 	$("cancel").addEventListener("click",function(){$("form").style.display="none";});
+	$("network").addEventListener("click",network_game,false);
 	$("cancel").style.display="none";
 	$("map").selectedIndex=LS.map||0;
 	$("ai_p1").selectedIndex=LS.ai_p1||3;
 	$("ai_p2").selectedIndex=LS.ai_p2||0;
-	//new_game();
+
+	network_enter_channel({user_id: "<anonymous>"});
 }
 
 window.addEventListener("load",init,false);
