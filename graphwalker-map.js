@@ -62,25 +62,25 @@ var edge=function(na,nb,used) {
 
 // Grid generators
 var rectangular_grid = function(size) {
-	var square={}
+	var grid={}
 	var scale = .8/size;
 	// Create nodes
 	for (var y=-size;y<=size;y++) {
 		for (var x=-size;x<=size;x++) {
 			boundary = (x==-size || x==size || y==-size || y==size);
-			square[[x,y]]=new node(x*scale,y*scale, boundary);
+			grid[[x,y]]=new node(x*scale,y*scale, boundary);
 		}
 	}
 	// create exit nodes
-	square[[-size,0]].exit=1;
-	square[[ size,0]].exit=2;
-	current.node=square[[0,0]];
+	grid[[-size,0]].exit=1;
+	grid[[ size,0]].exit=2;
+	current.node=grid[[0,0]];
 	current.player="p"+(1+Math.floor(Math.random()*2));
-	return square;
+	return grid;
 }
 
-var hexagonal_grid = function(size) {
-	var square={}
+var triangular_grid = function(size) {
+	var grid={}
 	var scale = 0.9/size;
 	var up = Math.sqrt(0.75);
 	// Create nodes
@@ -88,16 +88,37 @@ var hexagonal_grid = function(size) {
 		for (var x=-size;x<=size;x++) {
 			if (x-y>=-size && x-y<=size) {
   			boundary = (x==-size || x==size || y==-size || y==size || x-y==-size || x-y==size);
-				square[[x,y]]=new node((x+y)*.5*scale,(x-y)*up*scale, boundary);
+				grid[[x,y]]=new node((x+y)*.5*scale,(x-y)*up*scale, boundary);
 			}
 		}
 	}
 	// create exit nodes
-	square[[-size,-size]].exit=1;
-	square[[ size, size]].exit=2;
-	current.node=square[[0,0]];
+	grid[[-size,-size]].exit=1;
+	grid[[ size, size]].exit=2;
+	current.node=grid[[0,0]];
 	current.player="p"+(1+Math.floor(Math.random()*2));
-	return square;
+	return grid;
+}
+
+var hexagonal_grid = function(size) {
+	var grid={}
+	var scale = 0.9/size;
+	var up = Math.sqrt(0.75);
+	// Create nodes
+	for (var y=-size;y<=size;y++) {
+		for (var x=-size;x<=size;x++) {
+			if (x-y>=-size && x-y<=size && (x+y+300)%3>0) {
+  			boundary = (x==-size || x==size || y==-size || y==size || x-y==-size || x-y==size);
+				grid[[x,y]]=new node((x+y)*.5*scale,(x-y)*up*scale, boundary);
+			}
+		}
+	}
+	// create exit nodes
+	if ((size+size)%3==0) size--;
+	grid[[-size,-size]].exit=1;
+	grid[[ size, size]].exit=2;
+	current.player="p"+(1+Math.floor(Math.random()*2));
+	return grid;
 }
 
 // Connects a grid
@@ -132,27 +153,51 @@ new map("Original", function(){
 	connect_nodes(grid, dx, dy, bounds);
 });
 
-new map("Horse", function(){
+new map("Knight", function(){
 	var grid = rectangular_grid(5);
 	var dx=[-2,2,-1,1];
 	var dy=[1,1,2,2];
 	connect_nodes(grid, dx, dy);
 });
 
-new map("Hexagon", function(){
-	var grid = hexagonal_grid(6);
+new map("Triangles", function(){
+	var grid = triangular_grid(6);
 	var dx=[0,1,1];
 	var dy=[1,0,1];
 	var bounds=[1,1,1];
 	connect_nodes(grid, dx, dy, bounds);
 });
 
-new map("Hexagon dense", function(){
-	var grid = hexagonal_grid(5);
+new map("Triangles dense", function(){
+	var grid = triangular_grid(5);
 	var dx=[0,1,1,2,1,1];
 	var dy=[1,0,1,1,2,-1];
 	var bounds=[1,1,1,0,0,0];
 	connect_nodes(grid, dx, dy, bounds);
+});
+
+new map("Hexagons", function(){
+	var grid = hexagonal_grid(7);
+	var dx=[0,1,1,0,2,2];
+	var dy=[1,0,1,2,0,2];
+	var bounds=[1,1,1,1,1,1];
+	connect_nodes(grid, dx, dy, bounds);
+	c = new node(0, -Math.sqrt(0.75)*0.666667*0.9/7);
+	new edge(c,grid[[-1,-1]])
+	new edge(c,grid[[ 1, 1]])
+	current.node=c;
+});
+
+new map("Hexagrams", function(){
+	var grid = hexagonal_grid(7);
+	var dx=[0,1,1,2,1,1];
+	var dy=[1,0,1,1,2,-1];
+	var bounds=[1,1,1,0,0,0];
+	connect_nodes(grid, dx, dy, bounds);
+	c = new node(0, 0);
+	new edge(c,grid[[-1,-1]])
+	new edge(c,grid[[ 1, 1]])
+	current.node=c;
 });
 
 // kate: space-indent off; indent-width 2; 

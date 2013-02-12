@@ -287,6 +287,8 @@ var build_interface=function(){
 	}
 	add("circle",current.anim,{cx:0,cy:0,r:DEFAULT_DOT_RADIUS});
 	current.translate = add("animateTransform",current.anim,{attributeName:"transform", type:"translate", begin: "indefinite", dur:MOVE_DURATION, fill:"freeze"});
+	current.translate.setAttribute("values",current.node.x+","+current.node.y);
+	current.translate.beginElement();
 	//current.translate.addEventListener("endEvent", update_current, false);
 }
 
@@ -309,23 +311,25 @@ var new_game=function() {
 	// Sanity checking. Network player must play against human.
 	var ai1 = $("ai_p1").selectedIndex;
 	var ai2 = $("ai_p2").selectedIndex;
-	if (!AI[ai2]) ai1=0;
-	if (!AI[ai1]) ai2=0;
-	delete NET.game;
-	delete NET.opponent;
-	
-	if (AI[ai1] && AI[ai2]) {
-		$("network").disabled="disabled";
-		pusher.disconnect();
-		network_enter_channel({});
-		NET.disconnected = true;
-		NET.pending = false;
-	} else if (NET.pending) {
-		NET.pending = false;
-		// Make sure we are anonymous (in case of network play).
-		network_enter_channel({}, new_game);
-		$("form").style.display="none";
-		return;
+	if (typeof pusher!="undefined") {
+		if (!AI[ai2]) ai1=0;
+		if (!AI[ai1]) ai2=0;
+		delete NET.game;
+		delete NET.opponent;
+		
+		if (AI[ai1] && AI[ai2]) {
+			$("network").disabled="disabled";
+			pusher.disconnect();
+			network_enter_channel({});
+			NET.disconnected = true;
+			NET.pending = false;
+		} else if (NET.pending) {
+			NET.pending = false;
+			// Make sure we are anonymous (in case of network play).
+			network_enter_channel({}, new_game);
+			$("form").style.display="none";
+			return;
+		}
 	}
 	
 	// Create interface
@@ -577,20 +581,21 @@ text.ng:hover{fill:black;}';
 	// Set initial info
 	$("name_p1").value=LS.name_p1||"Player Red";
 	$("name_p2").value=LS.name_p2||"Player Blue";
-	$("name_nw").value=LS.name_nw||"Player";
 	$("color_p1").value=LS.color_p1||"red";
 	$("color_p2").value=LS.color_p2||"blue";
-	$("color_nw").value=LS.color_nw||"green";
 	$("newgame").addEventListener("click",new_game,false);
 	$("cancel").addEventListener("click",function(){$("form").style.display="none";});
-	$("network").addEventListener("click",network_game,false);
 	$("cancel").style.display="none";
 	$("map").selectedIndex=LS.map||0;
 	$("ai_p1").selectedIndex=LS.ai_p1||3;
 	$("ai_p2").selectedIndex=LS.ai_p2||0;
-
-	NET.user_id = generate_uid();
-	network_enter_channel({});
+  if (typeof pusher!="undefined") {
+		$("name_nw").value=LS.name_nw||"Player";
+		$("color_nw").value=LS.color_nw||"green";
+		$("network").addEventListener("click",network_game,false);
+		NET.user_id = generate_uid();
+		network_enter_channel({});
+	}
 }
 
 window.addEventListener("load",init,false);
