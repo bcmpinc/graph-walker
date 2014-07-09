@@ -153,6 +153,16 @@ new map("Original", function(){
 	connect_nodes(grid, dx, dy, bounds);
 });
 
+new map("Original (handicap p2)", function(){
+	var grid = rectangular_grid(5);
+	var dx=[1,1,1,0];
+	var dy=[-1,0,1,1];
+	var bounds=[0,1,0,1];
+	current.node=grid[[-4,0]];
+	current.player="p1";
+	connect_nodes(grid, dx, dy, bounds);	
+});
+
 new map("Knight", function(){
 	var grid = rectangular_grid(5);
 	var dx=[-2,2,-1,1];
